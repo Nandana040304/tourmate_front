@@ -9,6 +9,7 @@ import 'profile_edit_screen.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:geolocator/geolocator.dart';
+import '../config/api_config.dart';
 
 
 class TourMateDashboard extends StatefulWidget {
@@ -64,7 +65,7 @@ class _TourMateDashboardState extends State<TourMateDashboard> {
 
   Future<void> _fetchUserProfile() async {
     final response = await http.get(
-      Uri.parse("http://192.168.1.7:8000/api/profile/"),
+      Uri.parse(ApiConfig.profile),
       headers: {
         "Authorization": "Bearer ${widget.accessToken}",
       },
@@ -202,7 +203,9 @@ class _TourMateDashboardState extends State<TourMateDashboard> {
   }
 
   Widget _buildDiaryPage() {
-    return const PhotoDiaryScreen();
+    return PhotoDiaryScreen(
+      accessToken: widget.accessToken,
+    );
   }
 
   Widget _buildMorePage() {
@@ -369,10 +372,14 @@ class _TourMateDashboardState extends State<TourMateDashboard> {
                 'Photo Diary',
                 Icons.photo_camera,
                 Colors.purple,
-                () {
+                    () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const PhotoDiaryScreen()),
+                    MaterialPageRoute(
+                      builder: (context) => PhotoDiaryScreen(
+                        accessToken: widget.accessToken,
+                      ),
+                    ),
                   );
                 },
               ),
@@ -531,7 +538,7 @@ class _TourMateDashboardState extends State<TourMateDashboard> {
   }
 
   Future<void> _makeEmergencyCall() async {
-    final phoneNumber = _userData['emergency_contact'];
+    final phoneNumber = _userData['emergency_contact1'];
     final Uri phoneUri = Uri(scheme: 'tel', path: phoneNumber);
     
     try {
@@ -680,7 +687,7 @@ class _TourMateDashboardState extends State<TourMateDashboard> {
       // 🔹 Get Real Location
       Position position = await _getCurrentLocation();
 
-      final url = Uri.parse("http://192.168.1.7:8000/api/sos/send-sos/");
+      final url = Uri.parse(ApiConfig.sendSOS);
 
       final response = await http.post(
         url,

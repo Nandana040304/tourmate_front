@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import '../config/api_config.dart';
 
 
 class ProfileEditScreen extends StatefulWidget {
@@ -15,11 +16,6 @@ class ProfileEditScreen extends StatefulWidget {
   @override
   State<ProfileEditScreen> createState() => _ProfileEditScreenState();
 }
-
-
-
-  @override
-  State<ProfileEditScreen> createState() => _ProfileEditScreenState();
 
 
 class _ProfileEditScreenState extends State<ProfileEditScreen> {
@@ -80,7 +76,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
     try {
       final response = await http.get(
-        Uri.parse("http://192.168.1.7:8000/api/profile/"),
+        Uri.parse(ApiConfig.profile),
         headers: {
           "Authorization": "Bearer ${widget.accessToken}",
         },
@@ -152,7 +148,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
 
     var request = http.MultipartRequest(
       'PUT',
-      Uri.parse("http://192.168.1.7:8000/api/profile/"),
+        Uri.parse(ApiConfig.profile),
     );
     request.headers['Authorization'] = "Bearer ${widget.accessToken}";
     request.fields['full_name'] = _nameController.text;
@@ -325,7 +321,7 @@ class _ProfileEditScreenState extends State<ProfileEditScreen> {
               child: _profileImagePath.isNotEmpty
                   ? ClipOval(
                 child: Image.network(
-                  "http://192.168.1.7:8000$_profileImagePath",
+                  "${ApiConfig.baseUrl}$_profileImagePath",
                   fit: BoxFit.cover,
                   errorBuilder: (context, error, stackTrace) {
                     return _buildDefaultProfileIcon();

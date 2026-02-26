@@ -4,6 +4,7 @@ import 'tourmate_dashboard.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'forgot_password_screen.dart';
+import '../config/api_config.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -28,7 +29,7 @@ class _LoginScreenState extends State<LoginScreen> {
     if (_formKey.currentState!.validate()) {
 
       final response = await http.post(
-        Uri.parse("http://192.168.1.7:8000/api/login/"),
+        Uri.parse(ApiConfig.login),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode({
           "email": _emailController.text.trim(),

@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:geolocator/geolocator.dart';
+import '../config/api_config.dart';
 
 class PopularPlacesScreen extends StatefulWidget {
   const PopularPlacesScreen({super.key});
@@ -124,7 +125,7 @@ class _PopularPlacesScreenState extends State<PopularPlacesScreen> {
       ) async {
 
     final response = await http.post(
-      Uri.parse("http://192.168.1.7:8000/api/nearby/"),
+      Uri.parse(ApiConfig.nearbyPlaces),
       body: {
         "latitude": userLat.toString(),
         "longitude": userLon.toString(),

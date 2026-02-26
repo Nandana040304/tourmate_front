@@ -1,8 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'dart:io';
+import '../config/api_config.dart';
 
 class PhotoDiaryScreen extends StatefulWidget {
-  const PhotoDiaryScreen({super.key});
+  final String accessToken;
+
+
+  const PhotoDiaryScreen({
+    super.key,
+    required this.accessToken,
+  });
 
   @override
   State<PhotoDiaryScreen> createState() => _PhotoDiaryScreenState();
@@ -19,6 +29,7 @@ class _PhotoDiaryScreenState extends State<PhotoDiaryScreen> {
   void initState() {
     super.initState();
     _searchController.addListener(_onSearchChanged);
+    _fetchPhotos();   // 🔥 VERY IMPORTANT
   }
 
   @override
@@ -46,6 +57,77 @@ class _PhotoDiaryScreenState extends State<PhotoDiaryScreen> {
     }
   }
 
+  Future<void> _fetchPhotos() async {
+    final url = Uri.parse(ApiConfig.getPhotos);
+
+    final response = await http.get(
+      url,
+      headers: {
+        "Authorization": "Bearer ${widget.accessToken}",
+      },
+    );
+
+    if (response.statusCode == 200) {
+      final List data = jsonDecode(response.body);
+
+      setState(() {
+        _photoMemories = data.map((photo) {
+          return PhotoMemory(
+            id: photo["id"],
+            imageUrl: photo["image"],   // now this is server URL
+            caption: photo["caption"],
+            location: photo["location"],
+            dateTime: DateTime.parse(photo["created_at"]),
+          );
+        }).toList();
+
+        _filterPhotos();
+      });
+    }
+  }
+
+  Future<void> _deletePhoto(int photoId) async {
+    print("Deleting ID: $photoId");
+
+    try {
+      final url = Uri.parse("${ApiConfig.deletePhoto}$photoId/");
+
+      final response = await http.delete(
+        url,
+        headers: {
+          "Authorization": "Bearer ${widget.accessToken}",
+        },
+      );
+
+      if (response.statusCode == 200) {
+        setState(() {
+          _photoMemories.removeWhere((photo) => photo.id == photoId);
+          _filterPhotos();
+        });
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text("Photo deleted successfully"),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text("Delete failed: ${response.body}"),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text("Error: $e"),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
   // Show image source selection dialog
   Future<void> _showImageSourceDialog() {
     return showDialog(
@@ -118,18 +200,10 @@ class _PhotoDiaryScreenState extends State<PhotoDiaryScreen> {
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(8),
-                  child: Image.asset(
-                    imagePath,
+                  child: Image.file(
+                    File(imagePath),
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: Colors.grey[200],
-                        child: const Center(
-                          child: Icon(Icons.image, size: 48, color: Colors.grey),
-                        ),
-                      );
-                    },
-                  ),
+                  )
                 ),
               ),
               const SizedBox(height: 16),
@@ -180,18 +254,37 @@ class _PhotoDiaryScreenState extends State<PhotoDiaryScreen> {
   }
 
   // Add new photo memory
-  void _addPhotoMemory(String imagePath, String caption, String location) {
-    setState(() {
-      final newMemory = PhotoMemory(
-        imagePath: imagePath,
-        caption: caption,
-        location: location,
-        dateTime: DateTime.now(),
-      );
-      _photoMemories.insert(0, newMemory); // Add to beginning
-      _filterPhotos();
-    });
-    _showSuccessSnackBar('Memory added successfully!');
+  Future<void> _addPhotoMemory(
+      String imagePath, String caption, String location) async {
+
+    final url = Uri.parse(ApiConfig.uploadPhoto);
+
+    var request = http.MultipartRequest("POST", url);
+
+    request.headers["Authorization"] = "Bearer ${widget.accessToken}";
+
+    request.fields["caption"] = caption;
+    request.fields["location"] = location;
+
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        "image",
+        imagePath,
+      ),
+    );
+
+    var response = await request.send();
+    var responseData = await response.stream.bytesToString();
+
+    print("STATUS CODE: ${response.statusCode}");
+    print("RESPONSE: $responseData");
+
+    if (response.statusCode == 201) {
+      _fetchPhotos();
+      _showSuccessSnackBar("Memory uploaded successfully!");
+    } else {
+      _showErrorSnackBar("Upload failed");
+    }
   }
 
   void _showErrorSnackBar(String message) {
@@ -214,6 +307,7 @@ class _PhotoDiaryScreenState extends State<PhotoDiaryScreen> {
 
   // Show photo details
   void _showPhotoDetails(PhotoMemory photo) {
+    print("Image path: ${photo.imageUrl}");
     showDialog(
       context: context,
       builder: (context) => Dialog(
@@ -228,26 +322,21 @@ class _PhotoDiaryScreenState extends State<PhotoDiaryScreen> {
                 icon: const Icon(Icons.close),
               ),
             ),
+
             // Image
             Container(
               height: 300,
               width: double.infinity,
               child: ClipRRect(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(4)),
-                child: Image.asset(
-                  photo.imagePath,
-                  fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) {
-                    return Container(
-                      color: Colors.grey[200],
-                      child: const Center(
-                        child: Icon(Icons.image, size: 64, color: Colors.grey),
-                      ),
-                    );
-                  },
-                ),
+                borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(4)),
+                child: Image.network(
+                  "${ApiConfig.baseUrl}${photo.imageUrl}",
+                  fit: BoxFit.cover,
+                )
               ),
             ),
+
             // Details
             Padding(
               padding: const EdgeInsets.all(16),
@@ -262,9 +351,11 @@ class _PhotoDiaryScreenState extends State<PhotoDiaryScreen> {
                     ),
                   ),
                   const SizedBox(height: 8),
+
                   Row(
                     children: [
-                      const Icon(Icons.location_on, size: 16, color: Colors.grey),
+                      const Icon(Icons.location_on,
+                          size: 16, color: Colors.grey),
                       const SizedBox(width: 4),
                       Text(
                         photo.location,
@@ -275,10 +366,13 @@ class _PhotoDiaryScreenState extends State<PhotoDiaryScreen> {
                       ),
                     ],
                   ),
+
                   const SizedBox(height: 4),
+
                   Row(
                     children: [
-                      const Icon(Icons.access_time, size: 16, color: Colors.grey),
+                      const Icon(Icons.access_time,
+                          size: 16, color: Colors.grey),
                       const SizedBox(width: 4),
                       Text(
                         _formatDateTime(photo.dateTime),
@@ -288,6 +382,24 @@ class _PhotoDiaryScreenState extends State<PhotoDiaryScreen> {
                         ),
                       ),
                     ],
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // 🔴 DELETE BUTTON ADDED HERE
+                  SizedBox(
+                    width: double.infinity,
+                    child: ElevatedButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        _deletePhoto(photo.id);
+                      },
+                      icon: const Icon(Icons.delete),
+                      label: const Text("Delete"),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.red,
+                      ),
+                    ),
                   ),
                 ],
               ),
@@ -434,7 +546,7 @@ class _PhotoDiaryScreenState extends State<PhotoDiaryScreen> {
           crossAxisCount: 2,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
-          childAspectRatio: 1.0,
+          childAspectRatio: 0.8,
         ),
         itemCount: _filteredMemories.length,
         itemBuilder: (context, index) {
@@ -469,22 +581,11 @@ class _PhotoDiaryScreenState extends State<PhotoDiaryScreen> {
                 flex: 3,
                 child: Container(
                   width: double.infinity,
-                  child: Image.asset(
-                    photo.imagePath,
+                  child:Image.network(
+                    "${ApiConfig.baseUrl}${photo.imageUrl}",
                     fit: BoxFit.cover,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        color: Colors.grey[200],
-                        child: Center(
-                          child: Icon(
-                            Icons.image,
-                            size: 40,
-                            color: Colors.grey[400],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
+                  )
+
                 ),
               ),
               // Caption and location
@@ -573,6 +674,15 @@ class _PhotoDiaryScreenState extends State<PhotoDiaryScreen> {
         if (label == 'Home') {
           Navigator.pop(context);
         }
+        else if (label == 'Diary') {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) =>
+                  PhotoDiaryScreen(accessToken: widget.accessToken),
+            ),
+          );
+        }
       },
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -646,13 +756,15 @@ class _PhotoDiaryScreenState extends State<PhotoDiaryScreen> {
 
 // Photo memory model
 class PhotoMemory {
-  final String imagePath;
+  final int id;
+  final String imageUrl;
   final String caption;
   final String location;
   final DateTime dateTime;
 
   PhotoMemory({
-    required this.imagePath,
+    required this.id,
+    required this.imageUrl,
     required this.caption,
     required this.location,
     required this.dateTime,

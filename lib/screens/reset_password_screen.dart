@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import '../config/api_config.dart';
 
 class ResetPasswordScreen extends StatefulWidget {
   const ResetPasswordScreen({super.key});
@@ -17,7 +18,7 @@ class _ResetPasswordScreenState extends State<ResetPasswordScreen> {
   Future<void> resetPassword() async {
 
     final response = await http.post(
-      Uri.parse("http://192.168.1.7:8000/api/reset-password/"),
+      Uri.parse(ApiConfig.resetPassword),
       headers: {"Content-Type": "application/json"},
       body: jsonEncode({
         "token": _tokenController.text.trim(),
